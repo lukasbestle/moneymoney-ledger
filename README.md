@@ -23,7 +23,7 @@ decimal-mark ,
 
 ### Installation
 
-1. Download the signed extension file of the [latest release](https://github.com/lukasbestle/moneymoney-ledger/releases/latest).
+1. Download the <a href="https://raw.githubusercontent.com/lukasbestle/moneymoney-ledger/main/Ledger.lua" download>extension file</a> from the repository.
 2. Open the database directory of MoneyMoney as described on the [MoneyMoney website](https://moneymoney-app.com/extensions/).
 3. Place the extension file (`Ledger.lua`) in the `Extensions` directory of your MoneyMoney database.
 

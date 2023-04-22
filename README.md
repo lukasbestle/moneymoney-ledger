@@ -96,6 +96,16 @@ The **account names** are generated based on the [bank account](#bank-account) a
 
 The **amount** is taken from the MoneyMoney transaction and formatted according to the system locale. Please note that the sign of the amount is intentionally flipped because the amount you see is the amount of the *counter posting* (the mirror value of the financial posting). The amount of the financial posting is left blank because ledger/hledger automatically balance the transaction.
 
+### Split transactions
+
+If you want one transaction in MoneyMoney to get recorded to multiple separate counter accounts or with multiple different `{tax}` tags, you can use MoneyMoney's "split transaction" feature.
+
+This extension will detect and match split transactions by the fact that all basic metadata is exactly identical between the transactions. On export, it will then automatically combine those transactions into a single ledger transaction with multiple counter postings.
+
+This requires that the following properties match: transaction dates, transaction status, transaction code, recipient name, purpose text, comment, tags and financial account
+
+The following properties may of course differ: counter account (category), amount and posting-specific metadata (`[dates]` and `{tax}` tags)
+
 ## Credits
 
 The text syntax for category names and transaction comments and the export options were inspired by the [MoneyMonkey](https://github.com/timpritlove/moneymonkey) extension by Tim Pritlove.

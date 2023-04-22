@@ -52,7 +52,13 @@ Exporter({
 -- define local variables and functions
 ---@type string[]
 local transactionErrors
-local extractRegex, formatTags, localizeText, parseCategory, parseTags, trim
+local extractRegex, formatTags, localizeText, parseCategory, parseTags, processTransaction, trim
+
+-- define types
+---@class LedgerTransaction
+---@field header string Part with the shared information in a group
+---@field posting string Part with the counter transaction
+---@field error string? Optional transaction error
 
 -----------------------------------------------------------
 
@@ -86,129 +92,58 @@ end
 function WriteTransactions(account, transactions, options)
     local financialAccount = account.attributes.LedgerAccount or ("Assets:" .. account.name)
 
+    -- process all transactions into groups that share their header and error
+    local transactionGroups, transactionGroupOrder = {}, {}
     for _, transaction in ipairs(transactions) do
-        local transactionError
+        local ledgerTransaction, hash = processTransaction(transaction, options)
 
-        -- ensure that the transaction has a category
-        if transaction.category == "" then
-            transaction.category = "Unknown"
+        -- ensure that the group has its own table
+        if not transactionGroups[hash] then
+            transactionGroups[hash] = {}
 
-            -- treat the missing category as an error if requested by the user
-            if options.needsCategory == true then
-                transactionError = localizeText(
-                    "The transaction does not have an assigned category",
-                    "Der Umsatz hat keine zugewiesene Kategorie"
-                )
-            end
+            -- keep an ordered list to be able to print
+            -- the groups in the correct order later
+            table.insert(transactionGroupOrder, hash)
         end
 
-        -- ensure that the transaction is checked (if requested by the user)
-        if options.needsCheckmark == true and transaction.checkmark == false then
-            transactionError = transactionError
-                or localizeText("The transaction was not checked", "Der Umsatz ist nicht als erledigt markiert")
-        end
+        table.insert(transactionGroups[hash], ledgerTransaction)
 
-        -- status character (with trailing space only when present
-        -- so that an empty character won't produce two spaces)
-        local statusCharacter = ""
-        if transaction.checkmark == true then
-            statusCharacter = "* "
-        elseif transaction.booked == false then
-            statusCharacter = "! "
-        end
-
-        -- extract the counter account and list of tags from the category
-        local counterAccountHierarchy, tags = parseCategory(transaction.category)
-        local counterAccount = table.concat(counterAccountHierarchy, ":")
-        if counterAccount == "" then
-            -- the category name is so invalid that it made the account name empty;
-            -- treat as high-priority error that overrides previous errors
-            transactionError = localizeText(
-                "Empty counter account from category '" .. transaction.category .. "'",
-                "Leeres Gegenkonto aus der Kategorie '" .. transaction.category .. "'"
-            )
-
-            -- continue with a placeholder name for the output file
-            counterAccount = "Invalid"
-        end
-
-        -- extract the comment and list of tags from the transaction comment
-        local comment, transactionTags = parseTags(transaction.comment:gsub("\n", " "), true)
-        if comment ~= "" then
-            transactionTags.comment = comment
-        end
-
-        -- convert the purpose text to a tag, but only if the
-        -- transaction comment did not override the purpose tag
-        if transaction.purpose ~= "" and transactionTags.purpose == nil then
-            transactionTags.purpose = transaction.purpose:gsub("\n", " ")
-        end
-
-        -- merge the transaction tags into the existing list
-        -- (with precendence of the more specific transaction tags)
-        for key, value in pairs(transactionTags) do
-            tags[key] = value
-        end
-
-        -- separate handling of the `[date]`, `{tax}` and `<code>` tags
-        -- as they will not be set as transaction tags but
-        -- as posting tags or in the transaction header
-        local postingTags = {}
-        local code = ""
-        if tags.date then
-            -- literal tag without key
-            table.insert(postingTags, tags.date)
-            tags.date = nil
-        end
-        if tags.tax then
-            postingTags.tax = tags.tax
-            tags.tax = nil
-        end
-        if tags.code then
-            code = "(" .. tags.code .. ") "
-            tags.code = nil
-        end
-
-        -- flip the amount as we print it for the counter account;
-        -- the format uses an ASCII space to enable commodity parsing in ledger/hledger
-        local amount = MM.localizeAmount("#,##0.00 ¤;-#,##0.00 ¤", -transaction.amount, transaction.currency)
-
-        -- assemble the transaction string
-        local output = (
-            os.date("%Y-%m-%d", transaction.bookingDate)
-            .. "="
-            .. os.date("%Y-%m-%d", transaction.valueDate)
-            .. " "
-            .. statusCharacter
-            .. code
-            .. transaction.name
-            .. formatTags(tags, "\n  ", "\n  ")
-            .. "\n  "
-            .. counterAccount:gsub("%s+", " ")
-            .. "  "
-            .. amount
-            .. formatTags(postingTags, "\n    ", " ")
-            .. "\n  "
-            .. financialAccount:gsub("%s+", " ")
-        )
-
-        -- handle a transaction error
-        if transactionError then
-            -- prepend the error to the output as comment;
-            -- convert the output to line comments to comment out the invalid transaction
-            output = ("; Error: " .. transactionError .. "\n" .. output):gsub("\n", "\n; ")
-
-            -- add transaction details to the user-facing error message
-            transactionError = string.format(
+        -- generate a user-facing error message for each individual errorneous
+        -- transaction (even if grouped to display different amounts)
+        if ledgerTransaction.error then
+            local transactionError = string.format(
                 "%s:\n%s · %s (%s)",
-                transactionError,
+                ledgerTransaction.error,
                 MM.localizeDate(transaction.bookingDate),
                 transaction.name,
                 MM.localizeAmount(transaction.amount, transaction.currency)
             )
 
-            -- collect the full error message in the global list for aggregate output
+            -- collect the message in the global list for aggregate output
             table.insert(transactionErrors, transactionError)
+        end
+    end
+
+    -- now print all transaction groups in the order they were created
+    for _, hash in ipairs(transactionGroupOrder) do
+        local group = transactionGroups[hash]
+
+        -- we can get the header and error from the first
+        -- transaction as they all share those properties
+        local firstTransaction = group[1]
+
+        -- assemble the transaction string from the shared header,
+        -- the individual postings and the shared financial account
+        local output = firstTransaction.header
+        for _, ledgerTransaction in ipairs(group) do
+            output = output .. "\n  " .. ledgerTransaction.posting
+        end
+        output = output .. "\n  " .. financialAccount:gsub("%s+", " ")
+
+        if firstTransaction.error then
+            -- prepend the error to the output as comment;
+            -- convert the output to line comments to comment out the invalid transaction
+            output = ("; Error: " .. firstTransaction.error .. "\n" .. output):gsub("\n", "\n; ")
         end
 
         -- print the transaction to the export file;
@@ -386,6 +321,124 @@ function parseTags(str, transaction)
     end
 
     return str, tags
+end
+
+---Turns a MoneyMoney transaction object into the parts of
+---a ledger transaction string; separate header and posting
+---for split transaction support (header is shared)
+---
+---@param transaction Transaction
+---@param options table<string, boolean> Export options from the `Exporter` constructor
+---@return LedgerTransaction transaction Header, posting and optional error
+---@return string hash SHA1 hash of the header and error for group matching
+function processTransaction(transaction, options)
+    local transactionError
+
+    -- ensure that the transaction has a category
+    local category = transaction.category
+    if category == "" then
+        category = "Unknown"
+
+        -- treat the missing category as an error if requested by the user
+        if options.needsCategory == true then
+            transactionError = localizeText(
+                "The transaction does not have an assigned category",
+                "Der Umsatz hat keine zugewiesene Kategorie"
+            )
+        end
+    end
+
+    -- ensure that the transaction is checked (if requested by the user)
+    if options.needsCheckmark == true and transaction.checkmark == false then
+        transactionError = transactionError
+            or localizeText("The transaction was not checked", "Der Umsatz ist nicht als erledigt markiert")
+    end
+
+    -- status character (with trailing space only when present
+    -- so that an empty character won't produce two spaces)
+    local statusCharacter = ""
+    if transaction.checkmark == true then
+        statusCharacter = "* "
+    elseif transaction.booked == false then
+        statusCharacter = "! "
+    end
+
+    -- extract the counter account and list of tags from the category
+    local counterAccountHierarchy, tags = parseCategory(category)
+    local counterAccount = table.concat(counterAccountHierarchy, ":")
+    if counterAccount == "" then
+        -- the category name is so invalid that it made the account name empty;
+        -- treat as high-priority error that overrides previous errors
+        transactionError = localizeText(
+            "Empty counter account from category '" .. category .. "'",
+            "Leeres Gegenkonto aus der Kategorie '" .. category .. "'"
+        )
+
+        -- continue with a placeholder name for the output file
+        counterAccount = "Invalid"
+    end
+
+    -- extract the comment and list of tags from the transaction comment
+    local comment, transactionTags = parseTags(transaction.comment:gsub("\n", " "), true)
+    if comment ~= "" then
+        transactionTags.comment = comment
+    end
+
+    -- convert the purpose text to a tag, but only if the
+    -- transaction comment did not override the purpose tag
+    if transaction.purpose ~= "" and transactionTags.purpose == nil then
+        transactionTags.purpose = transaction.purpose:gsub("\n", " ")
+    end
+
+    -- merge the transaction tags into the existing list
+    -- (with precendence of the more specific transaction tags)
+    for key, value in pairs(transactionTags) do
+        tags[key] = value
+    end
+
+    -- separate handling of the `[date]`, `{tax}` and `<code>` tags
+    -- as they will not be set as transaction tags but
+    -- as posting tags or in the transaction header
+    local postingTags = {}
+    local code = ""
+    if tags.date then
+        -- literal tag without key
+        table.insert(postingTags, tags.date)
+        tags.date = nil
+    end
+    if tags.tax then
+        postingTags.tax = tags.tax
+        tags.tax = nil
+    end
+    if tags.code then
+        code = "(" .. tags.code .. ") "
+        tags.code = nil
+    end
+
+    -- flip the amount as we print it for the counter account;
+    -- the format uses an ASCII space to enable commodity parsing in ledger/hledger
+    local amount = MM.localizeAmount("#,##0.00 ¤;-#,##0.00 ¤", -transaction.amount, transaction.currency)
+
+    -- assemble the transaction strings
+    local ledgerTransaction = {
+        header = (
+            os.date("%Y-%m-%d", transaction.bookingDate)
+            .. "="
+            .. os.date("%Y-%m-%d", transaction.valueDate)
+            .. " "
+            .. statusCharacter
+            .. code
+            .. transaction.name
+            .. formatTags(tags, "\n  ", "\n  ")
+        ),
+        posting = (counterAccount:gsub("%s+", " ") .. "  " .. amount .. formatTags(postingTags, "\n    ", " ")),
+        error = transactionError,
+    }
+
+    -- transactions with different headers or different errors are not grouped
+    local hash = MM.sha1(ledgerTransaction.header .. "//" .. (transactionError or "no error"))
+
+    return ledgerTransaction, hash
 end
 
 ---Removes spaces from the beginning and end of a string

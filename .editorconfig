@@ -1,0 +1,22 @@
+# This file is for unifying the coding style for different editors and IDEs
+# editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = tab
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Indent using spaces instead of tabs because extensions signed
+# by the MoneyMoney developer don't support tab indentation
+# (otherwise tabs would be replaced by 8 spaces in the signed version)
+[*.lua]
+indent_style = space
+
+# Markdown supports trailing whitespace for line breaks
+[*.md]
+trim_trailing_whitespace = false

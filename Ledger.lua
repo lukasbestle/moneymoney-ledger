@@ -178,7 +178,7 @@ end
 ---
 ---@param str string
 ---@param regex string
----@param multiple? boolean If `true`, all matches are returned as a list
+---@param multiple boolean If `true`, all matches are returned as a list
 ---@return string str Remaining string
 ---@return string[] results Single or multiple matches
 ---@overload fun(str: string, regex: string): string, string

@@ -317,7 +317,7 @@ function parseTags(str, transaction)
     str, result = extractRegex(str, "#[^%s]+", true)
     for _, tag in ipairs(result) do
         local name, value = tag:match("^#([^:]+):?(.*)$")
-        tags[name] = value
+        tags[name] = value:gsub("__", " ")
     end
 
     return str, tags

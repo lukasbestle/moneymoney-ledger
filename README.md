@@ -70,7 +70,7 @@ The **name of the counter account** in ledger will be generated from the MoneyMo
 Each category can additionally have two different types of tags:
 
 - You can define a **tax tag** with the `{tax}` syntax. E.g. `{19%}` becomes the output `CounterAccount  123.00 € ; tax: 19%`. The tax tag is always set directly on the posting of the counter account, not on the whole transaction (because the tax does not apply to the financial account).
-- You can define one or multiple **custom tags** with the `#tag` or `#tag:value` syntax. The name and value may contain every character except whitespace and the comma (which is used to separate tags in hledger). The name may not contain the colon (which is the value separator in both ledger and hledger). Custom tags are set on the whole transaction.
+- You can define one or multiple **custom tags** with the `#tag` or `#tag:value` syntax. The name and value may contain every character except whitespace and the comma (which is used to separate tags in hledger). The name may not contain the colon (which is the value separator in both ledger and hledger). Each sequence of two underscores (`__`) in the tag value is converted to a single space. Custom tags are set on the whole transaction.
 
 All tags can be defined on any category hierarchy level (on a category group or on the category directly). Values defined higher up are inherited but overridden by values defined below.
 

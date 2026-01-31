@@ -27,7 +27,7 @@
 -- SOFTWARE.
 
 Exporter({
-    version = 1.11,
+    version = 1.20,
     format = "Ledger",
     fileExtension = "journal",
     reverseOrder = true, -- export transactions in chronological order

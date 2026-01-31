@@ -31,12 +31,13 @@ decimal-mark ,
 
 To export your MoneyMoney transactions to the ledger format, select one or more transactions, right-click and select "Export Transactions..." (or use the same option in the "Account" menu). In the format selector, choose "Ledger (.journal)".
 
-By default, the extension validates that each transaction in MoneyMoney was assigned to a category and has the checkmark (menu "View > Checkmarks") checked. The selected category will be used as the counter account in the double-entry transaction. The checkmark allows you to confirm every transaction inside MoneyMoney before you export it to your accounting setup.
+By default, the extension validates that each transaction in MoneyMoney was assigned to a category, has the checkmark (menu "View > Checkmarks") checked and was booked to the financial account. The selected category will be used as the counter account in the double-entry transaction. The checkmark allows you to confirm every transaction inside MoneyMoney before you export it to your accounting setup. Limiting exports to booked transactions prevents pending transactions with preliminary amounts from being exported.
 
 If you don't need these safety checks, you can disable them with the checkboxes in the export dialog:
 
 - If you disable the category check, transactions without an assigned category will be booked to an account named `Unknown`.
-- If you disable the checkmark check, transactions without the checkmark are exported with an empty status character (or a `!` sign if the transaction is pending).
+- If you disable the checkmark check, booked transactions without the checkmark are exported with an empty status character.
+- If you disable the booking check, pending transactions will be exported with a `!` sign as the status character.
 
 Transactions that cause an export error because of the safety checks or because of invalid customization options are printed in commented-out form.
 

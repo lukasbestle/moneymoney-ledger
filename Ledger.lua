@@ -46,6 +46,12 @@ Exporter({
             name = "needsCheckmark",
             default = true,
         },
+        {
+            label = MM.language == "de" and "Umsätze müssen gebucht sein"
+                or "Transactions must be booked",
+            name = "needsToBeBooked",
+            default = true,
+        },
     },
 })
 
@@ -352,6 +358,12 @@ function processTransaction(transaction, options)
     if options.needsCheckmark == true and transaction.checkmark == false then
         transactionError = transactionError
             or localizeText("The transaction was not checked", "Der Umsatz ist nicht als erledigt markiert")
+    end
+
+    -- ensure that the transaction is booked (if requested by the user)
+    if options.needsToBeBooked == true and transaction.booked == false then
+        transactionError = transactionError
+            or localizeText("The transaction was not booked", "Der Umsatz ist nicht gebucht")
     end
 
     -- status character (with trailing space only when present
